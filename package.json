@@ -1,0 +1,21 @@
+{
+  "name": "vapi-receptionist",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+  "start": "node webhook-server.js",
+  "test": "echo \"Error: no test specified\" && exit 1"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@vapi-ai/server-sdk": "^0.11.0",
+    "@vapi-ai/web": "^2.5.2",
+    "express": "^5.2.1",
+    "nodemailer": "^8.0.1",
+    "twilio": "^5.12.2"
+  }
+}
