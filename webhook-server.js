@@ -1,6 +1,9 @@
 const express = require('express');
 const twilio = require('twilio');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
+
+// SendGrid setup
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const app = express();
 app.use(express.json());
@@ -11,20 +14,6 @@ const twilioClient = twilio(
   process.env.TWILIO_AUTH_TOKEN
 );
 
-// Email setup (we'll use Gmail)
-// Email setup - Use SMTP with explicit settings
-const emailTransporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // use TLS
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASSWORD
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-});
 
 // Webhook endpoint that Vapi will call
 app.post('/booking-webhook', async (req, res) => {
@@ -129,25 +118,26 @@ async function sendCustomerSMS(booking) {
 // Send email to owner (you)
 async function sendOwnerEmail(booking) {
   const emailBody = `
-    New Booking at Sam's Barbershop!
-    
-    Customer: ${booking.name}
-    Phone: ${booking.customerPhone}
-    Service: ${booking.service}
-    Date: ${booking.date}
-    Time: ${booking.time}
-    Special Requests: ${booking.specialRequests || 'None'}
-    
-    Please add this to your calendar.
+New Booking at Sam's Barbershop!
+
+Customer: ${booking.name}
+Phone: ${booking.customerPhone}
+Service: ${booking.service}
+Date: ${booking.date}
+Time: ${booking.time}
+Special Requests: ${booking.specialRequests || 'None'}
+
+Please add this to your calendar.
   `;
   
- await emailTransporter.sendMail({
-  from: process.env.GMAIL_USER,
-  to: process.env.GMAIL_USER,
-  subject: `New Booking: ${booking.name} - ${booking.date}`,
-  text: emailBody
-});
+  const msg = {
+    to: process.env.OWNER_EMAIL,
+    from: process.env.OWNER_EMAIL, // SendGrid requires verified sender
+    subject: `New Booking: ${booking.name} - ${booking.date}`,
+    text: emailBody,
+  };
   
+  await sgMail.send(msg);
   console.log('Email sent to owner');
 }
 
