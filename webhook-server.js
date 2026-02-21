@@ -49,19 +49,51 @@ app.post('/booking-webhook', async (req, res) => {
 
 // Extract booking info from Vapi's webhook data
 function extractBookingInfo(vapiData) {
-  // Vapi sends the conversation transcript
-  const transcript = vapiData.transcript || '';
-  const messages = vapiData.messages || [];
+  // Vapi sends the data in the 'message' object
+  const message = vapiData.message || vapiData;
+  const transcript = message.transcript || message.artifact?.transcript || '';
+  const summary = message.summary || message.analysis?.summary || '';
+  const customer = message.customer || {};
   
-  // Parse the booking details from the conversation
-  // This is a simplified version - we'll refine it based on actual data
+  // Extract customer phone from the customer object
+  const customerPhone = customer.number;
+  
+  // Use AI summary to extract details, or parse from transcript
+  const fullText = summary + ' ' + transcript;
+  
+  // Extract name - look for patterns like "name is X" or "My name is X"
+  const nameMatch = fullText.match(/(?:name is|I'm|call me)\s+([A-Za-z]+)/i);
+  const name = nameMatch ? nameMatch[1] : null;
+  
+  // Extract service
+  let service = 'appointment';
+  if (fullText.toLowerCase().includes('haircut') && fullText.toLowerCase().includes('beard')) {
+    service = "men's haircut and beard trim";
+  } else if (fullText.toLowerCase().includes('haircut')) {
+    service = "men's haircut";
+  } else if (fullText.toLowerCase().includes('beard')) {
+    service = 'beard trim';
+  }
+  
+  // Extract date - look for date patterns
+  const dateMatch = fullText.match(/(?:Thursday|Friday|Saturday|Sunday|Monday|Tuesday|Wednesday),?\s+([A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})/i);
+  const date = dateMatch ? dateMatch[0] : null;
+  
+  // Extract time - look for time patterns
+  const timeMatch = fullText.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))/i);
+  const time = timeMatch ? timeMatch[1] : null;
+  
+  // Extract special requests
+  const specialMatch = fullText.match(/(?:low fade|high fade|skin fade|taper|buzz cut|faded beard)/gi);
+  const specialRequests = specialMatch ? specialMatch.join(', ') : null;
+  
   return {
-    name: extractField(transcript, 'name'),
-    customerPhone: extractField(transcript, 'phone'),
-    service: extractField(transcript, 'service'),
-    date: extractField(transcript, 'date'),
-    time: extractField(transcript, 'time'),
-    specialRequests: extractField(transcript, 'special')
+    name: name,
+    customerPhone: customerPhone,
+    service: service,
+    date: date,
+    time: time,
+    specialRequests: specialRequests
   };
 }
 
