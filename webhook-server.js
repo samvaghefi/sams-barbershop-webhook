@@ -12,11 +12,17 @@ const twilioClient = twilio(
 );
 
 // Email setup (we'll use Gmail)
+// Email setup - Use SMTP with explicit settings
 const emailTransporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // use TLS
   auth: {
-    user: process.env.GMAIL_USER,      // Your Gmail address
-    pass: process.env.GMAIL_PASSWORD           // Gmail app password (not your regular password)
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 });
 
@@ -28,10 +34,13 @@ app.post('/booking-webhook', async (req, res) => {
     // Extract booking details from Vapi
     const bookingData = extractBookingInfo(req.body);
     
-    if (!bookingData.customerPhone || !bookingData.name) {
-      console.log('Missing required booking data');
-      return res.status(200).send('OK');
+    // VALIDATE: Only send confirmation if we have ALL required data
+    if (!bookingData.customerPhone || !bookingData.name || !bookingData.date || !bookingData.time) {
+      console.log('Incomplete booking data - skipping confirmation:', bookingData);
+      return res.status(200).send('OK - Incomplete data');
     }
+    
+    console.log('Complete booking data:', bookingData);
     
     // Send SMS to customer
     await sendCustomerSMS(bookingData);
