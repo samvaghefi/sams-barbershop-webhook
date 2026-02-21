@@ -45,7 +45,7 @@ app.post('/booking-webhook', async (req, res) => {
   }
 });
 
-// Extract booking info from Vapi's webhook data
+//Extract Booking Info
 function extractBookingInfo(vapiData) {
   // Vapi sends the data in the 'message' object
   const message = vapiData.message || vapiData;
@@ -59,17 +59,35 @@ function extractBookingInfo(vapiData) {
   // Use AI summary to extract details, or parse from transcript
   const fullText = summary + ' ' + transcript;
   
-  // Extract name - look for patterns like "name is X" or "My name is X"
-  const nameMatch = fullText.match(/(?:name is|I'm|call me)\s+([A-Za-z]+)/i);
-  const name = nameMatch ? nameMatch[1] : null;
+  // Extract name - look for more patterns
+  let name = null;
+  const namePatterns = [
+    /(?:name is|I'm|call me|this is)\s+([A-Za-z]+)/i,
+    /my name'?s?\s+([A-Za-z]+)/i,
+    /([A-Z][a-z]+)\s+(?:called|booking)/i
+  ];
   
-  // Extract service
+  for (const pattern of namePatterns) {
+    const match = fullText.match(pattern);
+    if (match && match[1] && match[1].toLowerCase() !== 'sam') {
+      name = match[1];
+      break;
+    }
+  }
+  
+  // Extract service - be more specific
   let service = 'appointment';
-  if (fullText.toLowerCase().includes('haircut') && fullText.toLowerCase().includes('beard')) {
+  const lowerText = fullText.toLowerCase();
+  
+  // Check for explicit "beard trim" or "beard shave" mentions
+  const hasBearTrim = /beard\s*(?:trim|shave|shaving)/i.test(fullText);
+  const hasHaircut = /haircut|cut\s+(?:my\s+)?hair/i.test(fullText);
+  
+  if (hasHaircut && hasBearTrim) {
     service = "men's haircut and beard trim";
-  } else if (fullText.toLowerCase().includes('haircut')) {
+  } else if (hasHaircut) {
     service = "men's haircut";
-  } else if (fullText.toLowerCase().includes('beard')) {
+  } else if (hasBearTrim) {
     service = 'beard trim';
   }
   
