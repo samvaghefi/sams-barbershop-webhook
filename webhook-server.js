@@ -56,60 +56,67 @@ function extractBookingInfo(vapiData) {
   console.log('Summary:', summary);
   console.log('Transcript preview:', transcript.substring(0, 200));
   
-  const fullText = summary + ' ' + transcript;
-  
-  // Extract name - avoid "Sarah" (AI's name) or "Sam"
+  // Extract name from summary - it's usually at the start
   let name = null;
-  const namePatterns = [
-    /(?:name is|I'm|call me|this is)\s+([A-Za-z]+)/gi,
-    /my name'?s?\s+([A-Za-z]+)/gi,
-    /([A-Z][a-z]+)\s+called\s+(?:Sam's|the)/i
-  ];
   
-  for (const pattern of namePatterns) {
-    const matches = fullText.matchAll(pattern);
-    for (const match of matches) {
-      const potentialName = match[1];
-      if (potentialName && 
-          potentialName.toLowerCase() !== 'sarah' && 
-          potentialName.toLowerCase() !== 'sam' &&
-          potentialName.toLowerCase() !== 'barbershop') {
-        name = potentialName;
+  // Pattern 1: "Name called to book" - most reliable from summary
+  const summaryNameMatch = summary.match(/^([A-Z][a-z]+)\s+called/);
+  if (summaryNameMatch && summaryNameMatch[1].toLowerCase() !== 'customer') {
+    name = summaryNameMatch[1];
+  }
+  
+  // Pattern 2: Look in transcript for explicit name statements
+  if (!name) {
+    const transcriptPatterns = [
+      /(?:my name is|I'm|call me|this is)\s+([A-Za-z]+)/i,
+      /name'?s?\s+([A-Za-z]+)/i
+    ];
+    
+    for (const pattern of transcriptPatterns) {
+      const match = transcript.match(pattern);
+      if (match && match[1] && 
+          match[1].toLowerCase() !== 'sarah' && 
+          match[1].toLowerCase() !== 'barbershop') {
+        name = match[1];
         break;
       }
     }
-    if (name) break;
   }
   
-  // Extract service - use summary to understand final service request
+  // Extract service - handle multiple services
   let service = 'appointment';
   
-  if (/changed.*(?:to|request to)\s+(?:a\s+)?beard\s*trim/i.test(summary)) {
+  // Check for service changes first
+  if (/changed.*(?:to|request)\s+(?:a\s+)?beard\s*trim/i.test(summary)) {
     service = 'beard trim';
-  } else if (/changed.*(?:to|request to)\s+(?:a\s+)?(?:men's\s+)?haircut/i.test(summary)) {
+  } else if (/changed.*(?:to|request)\s+(?:a\s+)?(?:men's\s+)?haircut/i.test(summary)) {
     service = "men's haircut";
   } else {
-    const hasBeardTrim = /\bbeard\s*trim\b/i.test(summary);
-    const hasHaircut = /\b(?:men's\s+)?haircut\b/i.test(summary);
+    // Look for multiple services
+    const hasMensHaircut = /men'?s?\s+haircut/i.test(summary);
+    const hasKidsHaircut = /kid'?s?\s+haircut|child'?s?\s+haircut|haircut\s+for\s+(?:his|her)\s+(?:son|daughter|child)/i.test(summary);
+    const hasBeardTrim = /beard\s*trim/i.test(summary);
     
-    if (hasHaircut && hasBeardTrim && !/only|just/i.test(summary)) {
-      service = "men's haircut and beard trim";
-    } else if (hasBeardTrim) {
-      service = 'beard trim';
-    } else if (hasHaircut) {
-      service = "men's haircut";
+    const services = [];
+    if (hasMensHaircut) services.push("men's haircut");
+    if (hasKidsHaircut) services.push("kid's haircut");
+    if (hasBeardTrim) services.push('beard trim');
+    
+    if (services.length > 0) {
+      service = services.join(' and ');
     }
   }
   
   // Extract date
-  const dateMatch = fullText.match(/(?:Thursday|Friday|Saturday|Sunday|Monday|Tuesday|Wednesday),?\s+([A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})/i);
+  const dateMatch = summary.match(/(?:Thursday|Friday|Saturday|Sunday|Monday|Tuesday|Wednesday),?\s+([A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})/i);
   const date = dateMatch ? dateMatch[0] : null;
   
   // Extract time
-  const timeMatch = fullText.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))/i);
+  const timeMatch = summary.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))/i);
   const time = timeMatch ? timeMatch[1] : null;
   
-  // Extract special requests - remove duplicates
+  // Extract special requests
+  const fullText = summary + ' ' + transcript;
   const specialMatches = fullText.match(/(?:low fade|high fade|skin fade|taper|buzz cut|faded beard)/gi);
   const specialRequests = specialMatches ? [...new Set(specialMatches.map(s => s.toLowerCase()))].join(', ') : null;
   
